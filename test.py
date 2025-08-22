@@ -2,34 +2,34 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 
-st.set_page_config(page_title="산소포화도 & 호흡 생리 시뮬레이터", page_icon="🫁", layout="wide")
+st.set_page_config(page_title="약물 농도-시간 곡선", page_icon="💉", layout="wide")
 
-st.title("🫁 산소포화도 & 호흡 생리 시뮬레이터")
+st.title("💉 약물 농도-시간 시뮬레이터")
 
 # 사용자 입력
-altitude = st.slider("고도 (m)", 0, 8000, 0, 500)  # 해수면~에베레스트
-resp_rate = st.slider("호흡수 (회/분)", 8, 40, 16)
+dose = st.number_input("투여 용량 (mg)", 10, 1000, 500, 50)
+half_life = st.slider("반감기 (시간)", 1, 24, 6)
+interval = st.slider("투여 간격 (시간)", 1, 24, 8)
+time_end = st.slider("시뮬레이션 시간 (시간)", 12, 72, 48)
 
-# 단순 모델: 고도가 올라갈수록 산소분압 감소
-pO2_sea = 100  # mmHg
-pO2 = pO2_sea * np.exp(-altitude / 7000)
+# 약물 농도 계산
+k = np.log(2) / half_life  # 소실 속도 상수
+time = np.linspace(0, time_end, 500)
+conc = np.zeros_like(time)
 
-# 산소포화도 (Sigmoid 근사)
-def oxyhemoglobin_curve(pO2, resp_rate):
-    sat = 100 / (1 + np.exp(-(pO2 - 60) / 5))
-    sat = sat + (resp_rate - 16) * 0.3  # 과호흡 → 산소포화도 상승 보정
-    return np.clip(sat, 50, 100)
+# 반복 투여 모델
+for t in np.arange(0, time_end, interval):
+    conc += dose * np.exp(-k * (time - t)) * (time >= t)
 
-# 그래프 그리기
-x = np.linspace(20, 100, 200)
-y = 100 / (1 + np.exp(-(x - 60) / 5))
+# 그래프
 fig, ax = plt.subplots()
-ax.plot(x, y, label="O₂ 해리곡선")
-ax.axvline(pO2, color='r', linestyle="--", label=f"현재 pO₂ ≈ {pO2:.1f} mmHg")
-ax.set_xlabel("동맥 산소분압 (mmHg)")
-ax.set_ylabel("산소포화도 (%)")
+ax.plot(time, conc, label="혈중 약물 농도")
+ax.set_xlabel("시간 (hr)")
+ax.set_ylabel("농도 (mg/L)")
+ax.axhline(y=np.max(conc)/2, color="r", linestyle="--", label="50% 농도")
 ax.legend()
 st.pyplot(fig)
 
-# 현재 상태 출력
-st.metric("현재 산소포화도", f"{oxyhemoglobin_curve(pO2, resp_rate):.1f} %")
+# 해석 출력
+st.metric("최고 농도 (Cmax)", f"{np.max(conc):.1f} mg/L")
+st.metric("반감기", f"{half_life} 시간")
